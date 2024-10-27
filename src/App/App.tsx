@@ -1,12 +1,21 @@
 //import logo from "./logo.svg";
 import "./App.css";
-import WebcamCapture from "../Webcam/webcam";
+import LiveFeed from "../components/LiveFeed/LiveFeed";
+import NavBar from "../components/NavBar/NavBar";
+import { BrowserRouter as Router,Routes,Route } from "react-router-dom";
+import FileUpload from "../components/FileUpload/FileUpload";
 
-function App() {
+const App: React.FC = () => {
   return (
-    <div className="App">
-      <WebcamCapture />
-    </div>
+    <Router>
+      <div>
+      <NavBar/>
+        <Routes>
+          <Route path="/" element={<LiveFeed/>}/>
+          <Route path="/upload" element={<FileUpload/>}/>
+        </Routes>
+      </div>
+    </Router>
   );
 }
 
