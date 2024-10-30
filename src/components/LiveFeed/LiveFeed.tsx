@@ -180,7 +180,7 @@ console.log(process.env.REACT_APP_API_URL)
           if(!this.sendImageInterval){
             this.sendImageInterval = setInterval(async ()=>{
               await this.captureFrame();
-            },1000)
+            },3000)
           }
         }
       })
@@ -259,7 +259,7 @@ console.log(process.env.REACT_APP_API_URL)
       <main>
         <div className="py-4 container-fluid border border-dark
          rounded d-flex flex-column align-items-center justify-content-center">
-          {cameras.length > 0 ? (
+          {/* {cameras.length > 0 ? ( */}
           <div className="container-fluid align-items-center justify-content-center d-flex mb-3">
             <div className="mx-2">
               <button className="btn btn-primary" disabled={this.state.temVideo} onClick={()=>{this.mostraWebcam()}}>
@@ -299,17 +299,15 @@ console.log(process.env.REACT_APP_API_URL)
                   <option value="Canny-Bilateral-640">Canny-Bilateral-640</option>
                   <option value="Sobel-Bilateral-1024">Sobel-Bilateral-1024</option>
                   <option value="Sobel-Bilateral-640">Sobel-Bilateral-640</option>
-                  <option value="Laplace-Bilateral-1024">Laplace-Bilateral-640</option>
-                  <option value="Laplace-Bilateral-640">Laplace-Bilateral-640</option>
 {/*                   <option value="bilateral">Bilateral</option>
                   <option value="cinza">Cinza</option>
                   <option value="clahe">Clahe</option> */}
                 </select>
             </div>
           </div>
-          ) : (
+          {/* ) : (
             <button className="btn btn-primary" onBlur={(e) => {}}>Permitir Dispositivos</button>
-          )}
+          )} */}
           <div className="flex-row" style={{display:`${temVideo?'hidden':'flex'}`}} hidden={!temVideo}>
             <div className="embed-responsive embed-responsive-16by9 mx-auto d-flex justify-content-center align-items-middle">
               <video
