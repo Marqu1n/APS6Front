@@ -78,17 +78,26 @@ console.log(process.env.REACT_APP_API_URL)
   }
 
   desenharImagem = () => {
-    const { imagemBytesRetorno } = this.state;
+    const { imagemBytesRetorno,selectedPrePos } = this.state;
     const canvas = this.canvasRefRet.current;
     if(canvas){
       const ctx = canvas.getContext('2d');
       if(ctx){
         const img = new Image();
         img.src = imagemBytesRetorno; // Use a string base64 da imagem
-    
+        if(selectedPrePos.includes("1024")){
+          canvas.width = 1024
+          canvas.height = 1024
+        }else if(selectedPrePos.includes("640")){
+          canvas.width = 640
+          canvas.height = 640
+        } else {
+          canvas.width = this.videoWidth ?? 1024
+          canvas.height = this.videoHeight ?? 1024
+        }
         img.onload = () => {
-          ctx.clearRect(0, 0, this.videoWidth ?? canvas.width, this.videoHeight ??  canvas.height);
-          ctx.drawImage(img, 0, 0,this.videoWidth ??  canvas.width, this.videoHeight ??  canvas.height); // Desenhe a imagem
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0,canvas.width, canvas.height); // Desenhe a imagem
         };
       }
     }
@@ -185,11 +194,25 @@ console.log(process.env.REACT_APP_API_URL)
 
     if (canvas && video) {
         const context = canvas.getContext('2d');
-        // Set canvas dimensions equal to video dimensions
-        this.videoWidth= video.videoWidth;
-        this.videoHeight = video.videoHeight;
-        canvas.width = this.videoWidth
-        canvas.height = this.videoHeight
+/*         if(this.state.selectedPrePos.includes("1024")){
+          // Set canvas dimensions equal to video dimensions
+          this.videoWidth= 1024;
+          this.videoHeight = 1024;
+          canvas.width= 1024
+          canvas.height= 1024
+        }else if(this.state.selectedPrePos.includes("640")){
+          this.videoWidth= 640;
+          this.videoHeight = 640;
+          canvas.width= 640
+          canvas.height= 640
+        }else{ */
+          this.videoWidth = this.videoRef.current?.videoWidth
+          this.videoHeight = this.videoRef.current?.videoHeight
+          canvas.width = this.videoWidth ?? 1024
+          canvas.height = this.videoHeight ?? 1024
+       /*  } */
+/*         canvas.width = this.videoWidth
+        canvas.height = this.videoHeight */
 
         // Draw the current video frame to the canvas
         context?.drawImage(video, 0, 0);
@@ -272,11 +295,15 @@ console.log(process.env.REACT_APP_API_URL)
                   onChange={(e)=>(this.setState({selectedPrePos:e.target.value}))}
                 >
                   <option value="normal">Normal</option>
-                  <option value="canny">Canny</option>
-                  <option value="sobel">Sobel</option>
-                  <option value="bilateral">Bilateral</option>
+                  <option value="Canny-Bilateral-1024">Canny-Bilateral-1024</option>
+                  <option value="Canny-Bilateral-640">Canny-Bilateral-640</option>
+                  <option value="Sobel-Bilateral-1024">Sobel-Bilateral-1024</option>
+                  <option value="Sobel-Bilateral-640">Sobel-Bilateral-640</option>
+                  <option value="Laplace-Bilateral-1024">Laplace-Bilateral-640</option>
+                  <option value="Laplace-Bilateral-640">Laplace-Bilateral-640</option>
+{/*                   <option value="bilateral">Bilateral</option>
                   <option value="cinza">Cinza</option>
-                  <option value="clahe">Clahe</option>
+                  <option value="clahe">Clahe</option> */}
                 </select>
             </div>
           </div>
@@ -287,7 +314,8 @@ console.log(process.env.REACT_APP_API_URL)
             <div className="embed-responsive embed-responsive-16by9 mx-auto d-flex justify-content-center align-items-middle">
               <video
                 ref={this.videoRef}
-                className="w-75 border rounded mx-auto embed-responsive-item"
+                className="w-50 border rounded mx-auto embed-responsive-item"
+                //style={{maxWidth:"1vw"}}
                 autoPlay
                 playsInline
               />
