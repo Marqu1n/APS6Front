@@ -1,6 +1,8 @@
 import React, { Component, createRef, RefObject } from "react";
 import { useLocation, Location } from "react-router-dom"; // Importando Location do react-router-dom
 import {closeSocket, sendImage,imagemRetornoEventEmitter} from "../../service/streamService"
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faRefresh } from "@fortawesome/free-solid-svg-icons";
 
 interface LiveFeedState {
   stream: MediaStream | null;
@@ -8,6 +10,8 @@ interface LiveFeedState {
   temVideo: boolean;
   selectedDevice: string;
   imagemBytesRetorno: string,
+  selectedPrePos:string,
+  track:null | MediaStreamTrack
 }
 
 interface LiveFeedProps {
@@ -18,8 +22,10 @@ class LiveFeed extends Component<LiveFeedProps, LiveFeedState> {
   videoRef: RefObject<HTMLVideoElement>;
   canvasRef: RefObject<HTMLCanvasElement>;
   canvasRefRet:RefObject<HTMLCanvasElement>;
+  preProcessamento: RefObject<HTMLSelectElement>;
   streamRef: MediaStream | null;
   sendImageInterval: any;
+  isConnectedInterval: any;
   hasMounted: boolean = false
   videoWidth:number|undefined
   videoHeight:number|undefined
@@ -28,12 +34,15 @@ class LiveFeed extends Component<LiveFeedProps, LiveFeedState> {
     this.videoRef = createRef<HTMLVideoElement>();
     this.canvasRef = createRef<HTMLCanvasElement>();
     this.canvasRefRet = createRef<HTMLCanvasElement>();
+    this.preProcessamento = createRef<HTMLSelectElement>()
     this.state = {
       stream: null,
       cameras: [],
       temVideo: false,
       selectedDevice: '',
       imagemBytesRetorno: '',
+      selectedPrePos:'normal',
+      track:null
     };
     this.streamRef = null;
 
@@ -47,10 +56,15 @@ class LiveFeed extends Component<LiveFeedProps, LiveFeedState> {
       imagemRetornoEventEmitter.on('retorno', (retorno:string)=>{
         this.setState({imagemBytesRetorno:retorno},()=>{this.desenharImagem()})
       })
+      this.isConnectedInterval = setInterval(() => {
+        imagemRetornoEventEmitter.emit('isConnected')
+      }, 5000);
     }
   }
 
   componentDidUpdate(prevProps: LiveFeedProps) {
+console.log(process.env.REACT_APP_API_URL)
+
     // Verifica se o pathname mudou para parar o stream
     if (this.props.location.pathname !== prevProps.location.pathname) {
       this.stopStream();
@@ -60,6 +74,7 @@ class LiveFeed extends Component<LiveFeedProps, LiveFeedState> {
   componentWillUnmount(): void {
       this.stopStream()
       imagemRetornoEventEmitter.off('retorno',()=>{})
+      clearInterval(this.isConnectedInterval)
   }
 
   desenharImagem = () => {
@@ -72,7 +87,6 @@ class LiveFeed extends Component<LiveFeedProps, LiveFeedState> {
         img.src = imagemBytesRetorno; // Use a string base64 da imagem
     
         img.onload = () => {
-          // Limpa o canvas antes de desenhar
           ctx.clearRect(0, 0, this.videoWidth ?? canvas.width, this.videoHeight ??  canvas.height);
           ctx.drawImage(img, 0, 0,this.videoWidth ??  canvas.width, this.videoHeight ??  canvas.height); // Desenhe a imagem
         };
@@ -96,6 +110,19 @@ class LiveFeed extends Component<LiveFeedProps, LiveFeedState> {
     }
   }
 
+  setaOnEnded(){
+    const {track} = this.state
+    if(track){
+      track.onended = () => {
+        if (this.videoRef.current) {
+          this.videoRef.current.srcObject = null;
+        }
+        track.stop()
+        this.setState({ temVideo: false });
+      };
+    }
+  }
+
   async mostraWebcam() {
     const { selectedDevice } = this.state;
 
@@ -108,12 +135,8 @@ class LiveFeed extends Component<LiveFeedProps, LiveFeedState> {
         const res = await navigator.mediaDevices.getDisplayMedia({ video: true });
         this.setStream(res);
         res.getTracks().forEach(track => {
-          track.onended = () => {
-            if (this.videoRef.current) {
-              this.videoRef.current.srcObject = null;
-            }
-            this.setState({ temVideo: false });
-          };
+          this.setState({track:track}, ()=>{this.setaOnEnded()})
+          
         });
       this.setState({ temVideo: true })
 
@@ -128,12 +151,7 @@ class LiveFeed extends Component<LiveFeedProps, LiveFeedState> {
       const res = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: selectedDevice } } });
       this.setStream(res);
       res.getTracks().forEach(track => {
-        track.onended = () => {
-          if (this.videoRef.current) {
-            this.videoRef.current.srcObject = null;
-          }
-          this.setState({ temVideo: false });
-        };
+        this.setState({track:track},()=>{this.setaOnEnded()})
       });
       this.setState({ temVideo: true });
     } catch (err) {
@@ -153,7 +171,7 @@ class LiveFeed extends Component<LiveFeedProps, LiveFeedState> {
           if(!this.sendImageInterval){
             this.sendImageInterval = setInterval(async ()=>{
               await this.captureFrame();
-            },5000)
+            },1000)
           }
         }
       })
@@ -168,15 +186,17 @@ class LiveFeed extends Component<LiveFeedProps, LiveFeedState> {
     if (canvas && video) {
         const context = canvas.getContext('2d');
         // Set canvas dimensions equal to video dimensions
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        this.videoWidth= video.videoWidth;
+        this.videoHeight = video.videoHeight;
+        canvas.width = this.videoWidth
+        canvas.height = this.videoHeight
 
         // Draw the current video frame to the canvas
         context?.drawImage(video, 0, 0);
 
         // Get the image data as a data URL (base64)
         const imageData = canvas.toDataURL('image/png');
-        await sendImage(imageData)
+        await sendImage(imageData, this.preProcessamento.current?.value)
     }
   }
 
@@ -196,8 +216,10 @@ class LiveFeed extends Component<LiveFeedProps, LiveFeedState> {
   };
 
   stopStream = () => {
-    const { stream } = this.state;
+    const { stream, track } = this.state;
     if (stream) {
+      track?.dispatchEvent(new Event("ended"))
+      track?.stop()
       stream.getTracks().forEach((track) => track.stop());
       this.streamRef?.getTracks().forEach((track) => track.stop());
       this.streamRef = null
@@ -214,29 +236,53 @@ class LiveFeed extends Component<LiveFeedProps, LiveFeedState> {
       <main>
         <div className="py-4 container-fluid border border-dark
          rounded d-flex flex-column align-items-center justify-content-center">
-          <div className="mb-3">
-            {cameras.length > 0 ? (
+          {cameras.length > 0 ? (
+          <div className="container-fluid align-items-center justify-content-center d-flex mb-3">
+            <div className="mx-2">
+              <button className="btn btn-primary" disabled={this.state.temVideo} onClick={()=>{this.mostraWebcam()}}>
+                <FontAwesomeIcon icon={faRefresh} className="text-white"></FontAwesomeIcon>
+              </button>
+            </div>
+            <div className="mx-2">
+                <select
+                  value={selectedDevice}
+                  className="form-select shadow"
+                  style={{ maxWidth: '20rem' }}
+                  /* #onClick={}} */
+                  onChange={(e) => this.setState(()=>({selectedDevice:e.target.value}),()=>{this.state.track?.dispatchEvent(new Event("ended"));this.mostraWebcam()})}
+                >
+                  <option value='' disabled>Selecione o dispositivo</option>
+                  {cameras.map((item) => (
+                    <option key={item.deviceId} 
+                    onBlur={(e) => {this.mostraWebcam()}}
+                    value={item.deviceId}
+                    selected={item.deviceId === this.state.selectedDevice}>
+                      {item.label || 'Sem Rótulo'}
+                    </option>
+                  ))}
+                  <option value="tela" /* onFocus={()=>{this.mostraWebcam()}} */>Espelhar Tela</option>
+                </select>
+            </div>
+            <div className="mx-2">
               <select
-                value={selectedDevice}
-                className="form-select shadow"
-                style={{ maxWidth: '20rem' }}
-                onChange={(e) => this.setState(()=>({selectedDevice:e.target.value}),
-                () => {this.mostraWebcam()})}
-              >
-                <option value='' disabled>Selecione o dispositivo</option>
-                {cameras.map((item) => (
-                  <option key={item.deviceId} 
-                  value={item.deviceId}
-                  selected={item.deviceId === this.state.selectedDevice}>
-                    {item.label || 'Sem Rótulo'}
-                  </option>
-                ))}
-                <option value="tela">Espelhar Tela</option>
-              </select>
-            ) : (
-              <button className="btn btn-primary" onClick={() => {this.startStream()}}>Permitir Dispositivos</button>
-            )}
+                  ref={this.preProcessamento}
+                  value={this.preProcessamento.current?.value}
+                  className="form-select shadow"
+                  style={{ maxWidth: '20rem' }}
+                  onChange={(e)=>(this.setState({selectedPrePos:e.target.value}))}
+                >
+                  <option value="normal">Normal</option>
+                  <option value="canny">Canny</option>
+                  <option value="sobel">Sobel</option>
+                  <option value="bilateral">Bilateral</option>
+                  <option value="cinza">Cinza</option>
+                  <option value="clahe">Clahe</option>
+                </select>
+            </div>
           </div>
+          ) : (
+            <button className="btn btn-primary" onBlur={(e) => {}}>Permitir Dispositivos</button>
+          )}
           <div className="flex-row" style={{display:`${temVideo?'hidden':'flex'}`}} hidden={!temVideo}>
             <div className="embed-responsive embed-responsive-16by9 mx-auto d-flex justify-content-center align-items-middle">
               <video
